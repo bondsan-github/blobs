@@ -34,7 +34,7 @@
     <WarningLevel>4</WarningLevel>
   </PropertyGroup>
   <PropertyGroup>
-    <StartupObject>blobs.application</StartupObject>
+    <StartupObject>blobs.form</StartupObject>
   </PropertyGroup>
   <ItemGroup>
     <None Include="App.config" />
