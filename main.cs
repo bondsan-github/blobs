@@ -12,38 +12,50 @@ using System.Windows.Forms;
 
 namespace blobs
 {
+    public class vertex
+    {
+        public PointF begin = new PointF( 0.0f , 0.0f );
+        public PointF end = new PointF( 0.0f , 0.0f );
+        public PointF delta = new PointF( 0.0f , 0.0f );
+        public PointF transition = new PointF( 0.0f , 0.0f );
+
+        public bool expanding  = true;
+
+        public vertex() { }
+
+        public vertex( PointF in_being , PointF in_end , PointF in_delta )
+        {
+            begin = in_being;
+            end   = in_end;
+            delta = in_delta;
+        }
+    }
+
     public class blob
     {
-        private int          quadrant_amount = 20;
-        
-        private List<PointF> vertices_start;
-        //public  List<PointF> Vertices_Start { get; set; }
-        
-        private List<PointF> vertices_end;
+        private int          quadrant_amount = 10;
 
-        private List<PointF> vertices_slope;
+        private List<vertex> vertices = new List<vertex>();
+        //private List<PointF> vertices_start;
+        //private List<PointF> vertices_end;
+        //private List<PointF> vertices_delta;
 
-        public  float        radius { get; }
+        public float radius { get; }
 
         private Point        center;
-        private float        tension = 1.0f;
+        private float        tension = 0.0f;
         private Pen          pen_blue;
-        private float        pen_width = 1.0f;
+        private float        pen_width = 3.0f;
         private Random       random;
-        private float        variance = 40.0f;
-
+        //private float        variance = 40.0f;
+        private int          variance = 40;
         private float        slope_divisions = 60;
 
-        public blob( float in_radius )//, Point in_center )
+        public blob( float in_radius )
         {
-            //center   = in_center;
             radius   = in_radius;
             random   = new Random();
             pen_blue = new Pen( Color.Blue , pen_width );
-
-            vertices_start = new List<PointF>();
-            vertices_end   = new List<PointF>();
-            vertices_slope = new List<PointF>();
         }
 
         public void set_center( Point in_center ) { center = in_center; }
@@ -54,54 +66,82 @@ namespace blobs
 
             float theta = pi_double / quadrant_amount; // quadrant angle
 
-            for ( float circumference_point = 0; circumference_point <= pi_double + theta; circumference_point += theta )
+            // for each quadrant of a circle
+            for ( float circumference_point = 0 ; circumference_point <= pi_double + theta ; circumference_point += theta )
+            //for ( float circumference_point = 0 ; circumference_point < pi_double + theta ; circumference_point += theta )
             {
-                float x = center.X + ( radius * (float)Math.Cos(circumference_point) );
-                float y = center.Y + ( radius * (float)Math.Sin(circumference_point) );
+                // generate circle points
+                float start_x = center.X + ( radius * (float)Math.Cos(circumference_point) );
+                float start_y = center.Y + ( radius * (float)Math.Sin(circumference_point) );
 
-                PointF new_vertex_start = new PointF();
-                PointF new_vertex_end = new PointF();
-                
-                new_vertex_start.X = x += ( float )random.NextDouble() * variance;
-                new_vertex_start.Y = y += ( float )random.NextDouble() * variance;
+                // add random distance to begin and end vertices
+                vertex new_vertex = new vertex();
 
-                new_vertex_end.X = x += (float)random.NextDouble() * variance;
-                new_vertex_end.Y = y += (float)random.NextDouble() * variance;
+                new_vertex.begin.X = start_x;// += ( float )random.Next( -variance , variance );
+                new_vertex.begin.Y = start_y;// += ( float )random.Next( -variance , variance );
 
-                vertices_start.Add(new_vertex_start);
-                vertices_end.Add(new_vertex_end);
+                float radius_random = radius + 50;// ( float )random.Next( -variance , variance );
+                new_vertex.end.X = center.X + ( radius_random * (float)Math.Cos(circumference_point) );
+                new_vertex.end.Y = center.Y + ( radius_random * (float)Math.Sin(circumference_point) );
+
+                // movement vertex starts at begin vertex
+                new_vertex.transition = new_vertex.begin;
+
+                vertices.Add( new_vertex );
             }
 
-            // last vertex = first vertex
-            vertices_start[ vertices_start.Count - 1 ] = vertices_start[ 0 ];
-            vertices_end  [ vertices_end.Count - 1   ] = vertices_end[ 0 ];
+            // last vertex = first vertex to ensure a closed loop
+            //vertices[ vertices.Count - 1 ] = vertices[ 0 ];
 
-            for ( int index = 0 ; index < vertices_start.Count ; index++ )
+            // calculate the vertex delta begin and end X,Y 
+            for ( int index = 0 ; index < vertices.Count ; index++ )
             {
                 PointF new_point = new PointF();
-                
-                new_point.X = ( vertices_start[ index ].X - vertices_end[ index ].X ) / slope_divisions;
-                new_point.Y = ( vertices_start[ index ].Y - vertices_end[ index ].Y ) / slope_divisions;
 
-                vertices_slope.Add( new_point );
+                //new_point.X = ( vertices[ index ].begin.X - vertices[ index ].end.X ) / slope_divisions;
+                //new_point.Y = ( vertices[ index ].begin.Y - vertices[ index ].end.Y ) / slope_divisions;
+                new_point.Y = ( vertices[ index ].end.Y - vertices[ index ].begin.Y ) / slope_divisions;
+                new_point.X = ( vertices[ index ].end.X - vertices[ index ].begin.X ) / slope_divisions;
+
+                vertices[ index ].delta = new_point;
             }
         }
 
-        public void paint( object sender, PaintEventArgs event_paint )
+        public void paint( object sender , PaintEventArgs event_paint )
         {
-            event_paint.Graphics.DrawCurve( pen_blue , vertices_start.ToArray() , tension );
+            // copy movement vertex to a new list of PointF's for the DrawCurve function
+            List<PointF> transition_copy = new List<PointF>();
+            // vertices.Select( copy => new PointF(){ copy.transition } ).ToList();
+
+            for ( int index = 0 ; index < vertices.Count() ; index++ )
+            {
+                transition_copy.Add( vertices[ index ].transition );
+                //transition_copy.Add( vertices[ index ].begin );
+            }
+
+            event_paint.Graphics.DrawCurve( pen_blue , transition_copy.ToArray() , tension );
         }
 
         public void update()
         {
-            for ( int index = 0 ; index < vertices_start.Count ; index++ )
+
+            // update transition vertices 
+            for ( int index = 0 ; index < vertices.Count() ; index++ )
             {
-                PointF new_point = vertices_start[index];
+                // to add += , >= , <= operators to PointF
+                // modify transition vertex with delta
+                vertices[ index ].transition.X += vertices[ index ].delta.X;
+                vertices[ index ].transition.Y += vertices[ index ].delta.Y;
 
-                new_point.X += vertices_slope[ index ].X;
-                new_point.Y += vertices_slope[ index ].Y;
-
-                vertices_start[ index ] = new_point;
+                // if adding delta is past end or start then invert delta
+                if ( ( vertices[ index ].transition.X += vertices[ index ].delta.X ) <= vertices[ index ].begin.X ||
+                     ( vertices[ index ].transition.Y += vertices[ index ].delta.Y ) <= vertices[ index ].begin.Y ||
+                     ( vertices[ index ].transition.X += vertices[ index ].delta.X ) >= vertices[ index ].end.X ||
+                     ( vertices[ index ].transition.Y += vertices[ index ].delta.Y ) >= vertices[ index ].end.Y )
+                {
+                    vertices[ index ].delta.X *= -1;
+                    vertices[ index ].delta.Y *= -1;
+                }
             }
         }
 
@@ -129,41 +169,35 @@ namespace blobs
             DoubleBuffered = true;
             // event handlers
             this.KeyDown += form_KeyDown;
-            this.Paint += form_Paint;
+            //this.Paint += form_Paint;
             this.Load += form_Load;
             //this.Resize += form_Resize;
             // timer
             timer_1 = new Timer();
-            timer_1.Interval = 16;
+            timer_1.Interval = 16; // milli seconds
             timer_1.Tick += timer_1_tick;
             timer_1.Start();
             // blob
-            
-            //form_center.X = ( ClientSize.Width / 2 ) - ( int )blob_radius / 2;
-            //form_center.Y = ( ClientSize.Height / 2 ) - ( int )blob_radius / 2;
-
             blob1 = new blob( blob_radius );//, form_center );
             this.Paint += new System.Windows.Forms.PaintEventHandler( this.blob1.paint );
 
             // Gets a reference to the current BufferedGraphicsContext
-            graphics_buffered_context = BufferedGraphicsManager.Current;
+            //graphics_buffered_context = BufferedGraphicsManager.Current;
             // Creates a BufferedGraphics instance associated with Form1, and with
             // dimensions the same size as the drawing surface of Form1.
-            graphics_buffer = graphics_buffered_context.Allocate( this.CreateGraphics() , this.DisplayRectangle );
+            //graphics_buffer = graphics_buffered_context.Allocate( this.CreateGraphics() , this.DisplayRectangle );
         }
 
-
-        private void timer_1_tick(object sender, EventArgs e)
+        private void timer_1_tick( object sender , EventArgs e )
         {
             blob1.update();
+
+            this.Invalidate();
         }
 
-        private void form_Paint(object sender, PaintEventArgs e)
-        {
-           
-        }
+        //private void form_Paint(object sender, PaintEventArgs e)
 
-        public void form_Load(object sender, EventArgs event_args)
+        public void form_Load( object sender , EventArgs event_args )
         {
             form_center.X = ( ClientSize.Width / 2 ) - ( int )blob1.radius / 2;
             form_center.Y = ( ClientSize.Height / 2 ) - ( int )blob1.radius / 2;
@@ -172,9 +206,9 @@ namespace blobs
             blob1.initialise();
         }
 
-        private void form_KeyDown( object sender, KeyEventArgs event_arguments ) 
+        private void form_KeyDown( object sender , KeyEventArgs event_arguments )
         {
-            if( event_arguments.KeyCode == Keys.Escape )
+            if ( event_arguments.KeyCode == Keys.Escape )
             {
                 Application.Exit();
             }
@@ -185,6 +219,4 @@ namespace blobs
             Application.Run( new form() );
         }
     }
-
-    //InitializeComponent();
-}
+} // end namespace
