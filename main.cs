@@ -16,6 +16,8 @@ namespace blobs
     {
         public PointF begin = new PointF( 0.0f , 0.0f );
         public PointF end = new PointF( 0.0f , 0.0f );
+        //public float gradient;
+        //public float delta_x;
         public PointF delta = new PointF( 0.0f , 0.0f );
         public PointF transition = new PointF( 0.0f , 0.0f );
 
@@ -23,17 +25,17 @@ namespace blobs
 
         public vertex() { }
 
-        public vertex( PointF in_being , PointF in_end , PointF in_delta )
+        public vertex( PointF in_being , PointF in_end )// , float in_delta_x )
         {
             begin = in_being;
             end   = in_end;
-            delta = in_delta;
+            //delta_x = in_delta_x;
         }
     }
 
     public class blob
     {
-        private int          quadrant_amount = 10;
+        private int          quadrant_amount = 20;
 
         private List<vertex> vertices = new List<vertex>();
         //private List<PointF> vertices_start;
@@ -43,13 +45,13 @@ namespace blobs
         public float radius { get; }
 
         private Point        center;
-        private float        tension = 0.0f;
+        private float        tension = 1.0f;
         private Pen          pen_blue;
         private float        pen_width = 3.0f;
         private Random       random;
         //private float        variance = 40.0f;
-        private int          variance = 40;
-        private float        slope_divisions = 60;
+        private int          variance = 20;
+        private float        line_divisions = 60;
 
         public blob( float in_radius )
         {
@@ -70,17 +72,17 @@ namespace blobs
             for ( float circumference_point = 0 ; circumference_point <= pi_double + theta ; circumference_point += theta )
             //for ( float circumference_point = 0 ; circumference_point < pi_double + theta ; circumference_point += theta )
             {
-                // generate circle points
-                float start_x = center.X + ( radius * (float)Math.Cos(circumference_point) );
-                float start_y = center.Y + ( radius * (float)Math.Sin(circumference_point) );
-
-                // add random distance to begin and end vertices
                 vertex new_vertex = new vertex();
 
-                new_vertex.begin.X = start_x;// += ( float )random.Next( -variance , variance );
-                new_vertex.begin.Y = start_y;// += ( float )random.Next( -variance , variance );
+                // generate begin circle points
+                float radius_random = radius + ( float )random.Next( -variance , variance );
 
-                float radius_random = radius + 50;// ( float )random.Next( -variance , variance );
+                new_vertex.begin.X = center.X + ( radius_random * (float)Math.Cos(circumference_point) );
+                new_vertex.begin.Y = center.Y + ( radius_random * (float)Math.Sin(circumference_point) );
+
+                // generate end circle points
+                radius_random = radius + ( float )random.Next( -variance , variance );
+
                 new_vertex.end.X = center.X + ( radius_random * (float)Math.Cos(circumference_point) );
                 new_vertex.end.Y = center.Y + ( radius_random * (float)Math.Sin(circumference_point) );
 
@@ -93,17 +95,29 @@ namespace blobs
             // last vertex = first vertex to ensure a closed loop
             //vertices[ vertices.Count - 1 ] = vertices[ 0 ];
 
-            // calculate the vertex delta begin and end X,Y 
+            // calculate the vertex x and y delta between begin and end 
             for ( int index = 0 ; index < vertices.Count ; index++ )
             {
-                PointF new_point = new PointF();
+                // line gradient
+                //float gradient = ( vertices[index].end.Y - vertices[index].begin.Y) / ( vertices[index].end.X - vertices[index].begin.X );
 
-                //new_point.X = ( vertices[ index ].begin.X - vertices[ index ].end.X ) / slope_divisions;
-                //new_point.Y = ( vertices[ index ].begin.Y - vertices[ index ].end.Y ) / slope_divisions;
-                new_point.Y = ( vertices[ index ].end.Y - vertices[ index ].begin.Y ) / slope_divisions;
-                new_point.X = ( vertices[ index ].end.X - vertices[ index ].begin.X ) / slope_divisions;
+                // distance between begin and end
+                //double x = Math.Pow( vertices[index].end.X - vertices[index].begin.X , 2.0 );
+                //double y = Math.Pow( vertices[index].end.Y - vertices[index].begin.Y , 2.0 );
 
-                vertices[ index ].delta = new_point;
+                //double new_distance = Math.Sqrt( x + y );
+
+                //float new_delta_x = ( vertices[ index ].end.X - vertices[ index ].begin.X ) / line_divisions;
+
+                PointF new_delta = new PointF( 0.0f, 0.0f );
+
+                new_delta.X = ( vertices[ index ].end.X - vertices[ index ].begin.X ) / line_divisions;
+                new_delta.Y = ( vertices[ index ].end.Y - vertices[ index ].begin.Y ) / line_divisions;
+
+                //vertices[ index ].delta_x = new_delta_x;
+                //vertices[ index ].gradient = gradient;
+                
+                vertices[ index ].delta = new_delta;
             }
         }
 
@@ -119,7 +133,7 @@ namespace blobs
                 //transition_copy.Add( vertices[ index ].begin );
             }
 
-            event_paint.Graphics.DrawCurve( pen_blue , transition_copy.ToArray() , tension );
+            event_paint.Graphics.DrawClosedCurve( pen_blue , transition_copy.ToArray() , tension , System.Drawing.Drawing2D.FillMode.Winding );
         }
 
         public void update()
@@ -129,19 +143,20 @@ namespace blobs
             for ( int index = 0 ; index < vertices.Count() ; index++ )
             {
                 // to add += , >= , <= operators to PointF
-                // modify transition vertex with delta
+
+                // modify transition vertex with delta 
                 vertices[ index ].transition.X += vertices[ index ].delta.X;
                 vertices[ index ].transition.Y += vertices[ index ].delta.Y;
 
+                //vertices[ index ].transition.X += vertices[ index ].delta_x;
+                //vertices[ index ].transition.Y = vertices[ index ].transition.X * vertices[ index ].gradient;
+
                 // if adding delta is past end or start then invert delta
-                if ( ( vertices[ index ].transition.X += vertices[ index ].delta.X ) <= vertices[ index ].begin.X ||
-                     ( vertices[ index ].transition.Y += vertices[ index ].delta.Y ) <= vertices[ index ].begin.Y ||
-                     ( vertices[ index ].transition.X += vertices[ index ].delta.X ) >= vertices[ index ].end.X ||
-                     ( vertices[ index ].transition.Y += vertices[ index ].delta.Y ) >= vertices[ index ].end.Y )
-                {
-                    vertices[ index ].delta.X *= -1;
-                    vertices[ index ].delta.Y *= -1;
-                }
+                if( vertices[ index ].transition.X  > vertices[ index ].end.X ) vertices[ index ].delta.X *= -1;
+                if( vertices[ index ].transition.X  < vertices[ index ].begin.X ) vertices[ index ].delta.X *= -1;
+                
+                if( vertices[ index ].transition.Y > vertices[ index ].end.Y ) vertices[ index ].delta.Y *= -1;
+                if( vertices[ index ].transition.Y < vertices[ index ].begin.Y ) vertices[ index ].delta.Y *= -1;
             }
         }
 
